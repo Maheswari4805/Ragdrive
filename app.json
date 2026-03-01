@@ -1,0 +1,61 @@
+{
+  "expo": {
+    "name": "Drivedrop",
+    "slug": "drivedrop-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/logo.png",
+    "userInterfaceStyle": "light",
+    "scheme": "drivedrop",
+    "splash": {
+      "image": "./assets/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.drivedrop.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Drivedrop needs camera access to capture photos for upload to Google Drive.",
+        "NSPhotoLibraryUsageDescription": "Drivedrop needs photo library access to upload photos to Google Drive."
+      }
+    },
+    "android": {
+      "package": "com.drivedrop.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logo.png",
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/logo.png"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Drivedrop needs camera access to capture photos for upload."
+        }
+      ],
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
+      ],
+      "expo-web-browser",
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "8bfd7c5b-1145-4cd9-ab3f-3408b7719f38"
+      }
+    }
+  }
+}
