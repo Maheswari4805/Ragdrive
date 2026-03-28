@@ -103,61 +103,66 @@ class ChatRequest(BaseModel):
 @app.post("/chat")
 async def chat_with_rag(request: ChatRequest):
     try:
+        model_name = 'gemini-1.5-flash-latest'
+        model = genai.GenerativeModel(model_name)
+        
+        # --- AGENTIC RAG STEP 1: Reasoning ---
+        # First, we ask the brain if it needs a search for this specific query
+        reasoning_prompt = f"""You are a RAG reasoning agent. 
+        Analyze the USER_QUERY and decide if there is a document to search.
+        
+        USER_QUERY: "{request.query}"
+        HAS_DOCUMENT: {'Yes' if request.file_id else 'No'}
+        
+        Respond with exactly one word: 'SEARCH' if we should scan the document, or 'CHAT' if this is a general greeting or non-document question.
+        """
+        reasoning_result = model.generate_content(reasoning_prompt).text.strip().upper()
+        
         context = ""
-        # 1. Handle File-Based RAG if ID is provided
-        if request.file_id:
+        # --- AGENTIC RAG STEP 2: Tool Execution ---
+        if 'SEARCH' in reasoning_result and request.file_id:
+            # Automate file check & vector search
             if request.file_id not in rag.file_data:
                 if not request.access_token:
-                    raise HTTPException(status_code=400, detail="Access token required for file access")
+                    raise HTTPException(status_code=400, detail="Access token required for file RAG")
                 
                 headers = {"Authorization": f"Bearer {request.access_token}"}
                 url = f"https://www.googleapis.com/drive/v3/files/{request.file_id}?alt=media"
                 response = requests.get(url, headers=headers)
                 
-                if response.status_code != 200:
-                    raise HTTPException(status_code=400, detail="Failed to fetch file from Google Drive")
-                
-                text = extract_text(response.content, request.mime_type)
-                rag.process_file(request.file_id, text)
-
-            context = rag.get_relevant_context(request.file_id, request.query)
-        
-        # 2. Prepare AI Prompt
-        # Switched to 'gemini-1.5-flash-latest' to ensure compatibility with v1beta
-        model_name = 'gemini-1.5-flash-latest' 
-        model = genai.GenerativeModel(model_name)
-        
-        if context:
-            prompt = f"""You are a professional RAG assistant. Use the context below to answer accurately.
-            The context is extracted from documents you have access to.
+                if response.status_code == 200:
+                    text = extract_text(response.content, request.mime_type)
+                    rag.process_file(request.file_id, text)
             
-            CONTEXT:
+            context = rag.get_relevant_context(request.file_id, request.query)
+
+        # --- AGENTIC RAG STEP 3: Final Response Generation ---
+        if context:
+            final_prompt = f"""You are the Drivedrop RAG Expert. 
+            I have searched the document and found these relevant facts:
             {context}
             
-            USER QUESTION:
-            {request.query}
+            Answer the user's question accurately using these facts.
+            USER_QUESTION: {request.query}
             """
         else:
-            # 2b. General chat prompt with custom persona
-            prompt = f"""You are the Drivedrop RAG Expert, a specialized AI assistant powered by a Python RAG backend on Render.
-            You are helpful and professional.
+            final_prompt = f"""You are the Drivedrop RAG Expert. 
+            This is a general chat interaction without document search.
             
-            USER QUESTION:
-            {request.query}
+            USER_QUESTION: {request.query}
             """
-        
-        # 3. Handle Chat History if provided
+
+        # Handle Chat History
         contents = []
         if request.history:
             for entry in request.history:
                 role = "model" if entry.get("role") == "assistant" else "user"
                 contents.append({"role": role, "parts": [entry.get("content", "")]})
         
-        # Add current prompt
-        contents.append({"role": "user", "parts": [prompt]})
+        contents.append({"role": "user", "parts": [final_prompt]})
         
         result = model.generate_content(contents)
-        return {"answer": result.text}
+        return {"answer": result.text, "reasoning": reasoning_result}
 
     except Exception as e:
         print(f"Error: {e}")
