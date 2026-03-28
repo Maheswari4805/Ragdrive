@@ -93,42 +93,63 @@ rag = SimpleRag()
 # --- API Endpoints ---
 
 class ChatRequest(BaseModel):
-    file_id: str
-    file_name: str
-    mime_type: str
-    access_token: str
+    file_id: Optional[str] = None
+    file_name: Optional[str] = "General Chat"
+    mime_type: Optional[str] = "text/plain"
+    access_token: Optional[str] = None
     query: str
     history: Optional[List[dict]] = []
 
 @app.post("/chat")
 async def chat_with_rag(request: ChatRequest):
     try:
-        if request.file_id not in rag.file_data:
-            headers = {"Authorization": f"Bearer {request.access_token}"}
-            url = f"https://www.googleapis.com/drive/v3/files/{request.file_id}?alt=media"
-            response = requests.get(url, headers=headers)
-            
-            if response.status_code != 200:
-                raise HTTPException(status_code=400, detail="Failed to fetch file")
-            
-            text = extract_text(response.content, request.mime_type)
-            rag.process_file(request.file_id, text)
+        context = ""
+        # 1. Handle File-Based RAG if ID is provided
+        if request.file_id:
+            if request.file_id not in rag.file_data:
+                if not request.access_token:
+                    raise HTTPException(status_code=400, detail="Access token required for file access")
+                
+                headers = {"Authorization": f"Bearer {request.access_token}"}
+                url = f"https://www.googleapis.com/drive/v3/files/{request.file_id}?alt=media"
+                response = requests.get(url, headers=headers)
+                
+                if response.status_code != 200:
+                    raise HTTPException(status_code=400, detail="Failed to fetch file from Google Drive")
+                
+                text = extract_text(response.content, request.mime_type)
+                rag.process_file(request.file_id, text)
 
-        context = rag.get_relevant_context(request.file_id, request.query)
+            context = rag.get_relevant_context(request.file_id, request.query)
         
+        # 2. Prepare AI Prompt
         model = genai.GenerativeModel('gemini-1.5-flash')
         
-        prompt = f"""You are a professional RAG assistant. Use the context below to answer accurately.
-        If the answer isn't in context, use your general knowledge but mention it.
+        if context:
+            prompt = f"""You are a professional RAG assistant. Use the context below to answer accurately.
+            If the answer isn't in context, use your general knowledge but mention it.
+            
+            CONTEXT:
+            {context}
+            
+            QUESTION:
+            {request.query}
+            """
+        else:
+            # General chat prompt without context
+            prompt = request.query
         
-        CONTEXT:
-        {context}
+        # 3. Handle Chat History if provided
+        contents = []
+        if request.history:
+            for entry in request.history:
+                role = "model" if entry.get("role") == "assistant" else "user"
+                contents.append({"role": role, "parts": [entry.get("content", "")]})
         
-        QUESTION:
-        {request.query}
-        """
+        # Add current prompt
+        contents.append({"role": "user", "parts": [prompt]})
         
-        result = model.generate_content(prompt)
+        result = model.generate_content(contents)
         return {"answer": result.text}
 
     except Exception as e:

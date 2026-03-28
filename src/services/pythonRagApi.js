@@ -3,7 +3,7 @@
  */
 
 // Replace with your local IP address if testing on a physical device (e.g., 'http://192.168.1.5:8000')
-const PYTHON_BACKEND_URL = 'http://10.0.2.2:8000';
+const PYTHON_BACKEND_URL = 'https://ragdrive-backend.onrender.com';
 
 /**
  * Chat with Python RAG Backend
