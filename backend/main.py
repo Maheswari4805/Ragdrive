@@ -17,7 +17,7 @@ app = FastAPI(title="Ragdrive Python Backend")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False, # Credentials cannot be True when Origins is wildcard "*"
     allow_methods=["*"],
     allow_headers=["*"],
 )
