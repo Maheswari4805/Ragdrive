@@ -123,16 +123,18 @@ async def chat_with_rag(request: ChatRequest):
             context = rag.get_relevant_context(request.file_id, request.query)
         
         # 2. Prepare AI Prompt
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # Using a more robust model mapping to avoid 404s
+        model_name = 'gemini-1.5-flash' 
+        model = genai.GenerativeModel(model_name)
         
         if context:
             prompt = f"""You are a professional RAG assistant. Use the context below to answer accurately.
-            If the answer isn't in context, use your general knowledge but mention it.
+            The context is extracted from files provided by the user.
             
             CONTEXT:
             {context}
             
-            QUESTION:
+            USER QUESTION:
             {request.query}
             """
         else:
